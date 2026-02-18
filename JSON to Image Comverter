@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Artifact Decoder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar for a sleek look */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background: #888; 
+            border-radius: 4px;
+        }
+        textarea::-webkit-scrollbar-thumb:hover {
+            background: #555; 
+        }
+        /* Checkerboard pattern for transparency */
+        .checkerboard {
+            background-color: #ffffff;
+            background-image: linear-gradient(45deg, #e5e7eb 25%, transparent 25%), 
+                              linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #e5e7eb 75%), 
+                              linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+    </style>
+</head>
+<body class="bg-zinc-100 text-zinc-900 font-sans min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Main Container -->
+    <div class="w-full max-w-4xl bg-white rounded-xl shadow-2xl overflow-hidden border border-zinc-200 flex flex-col md:flex-row">
+        
+        <!-- Left Panel: Input -->
+        <div class="w-full md:w-1/2 p-8 border-b md:border-b-0 md:border-r border-zinc-200 bg-zinc-50 flex flex-col">
+            <h1 class="text-2xl font-bold mb-2 tracking-tight text-black">Artifact Decoder</h1>
+            <p class="text-sm text-zinc-500 mb-6">Paste your JSON Base64 string below to reveal the hidden image.</p>
+            
+            <textarea 
+                id="inputData" 
+                class="w-full flex-grow h-48 md:h-64 p-4 text-xs font-mono bg-white border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent resize-none text-zinc-600 mb-4 shadow-inner"
+                placeholder='data:application/json;base64,eyJuYW1lIjoiTm9ybWllLi4u'></textarea>
+            
+            <div class="flex gap-3">
+                <button 
+                    onclick="convertData()" 
+                    class="flex-1 bg-black text-white py-3 px-4 rounded-lg font-semibold hover:bg-zinc-800 transition-all duration-200 shadow-md active:scale-95 flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    Reveal Image
+                </button>
+                <button 
+                    onclick="clearInput()" 
+                    class="px-4 py-3 border border-zinc-300 rounded-lg hover:bg-zinc-100 text-zinc-600 transition-colors"
+                    title="Clear Input">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
+            </div>
+            <p id="errorMsg" class="text-red-500 text-xs mt-3 h-4 font-semibold opacity-0 transition-opacity text-center"></p>
+        </div>
+
+        <!-- Right Panel: Output -->
+        <div class="w-full md:w-1/2 p-8 flex flex-col items-center justify-center bg-white relative">
+            <div class="absolute top-4 right-4 flex gap-2">
+                <span id="metaName" class="text-xs font-bold px-2 py-1 bg-zinc-100 rounded text-zinc-500 hidden"></span>
+            </div>
+
+            <!-- Canvas Container -->
+            <div id="canvasContainer" class="w-64 h-64 border-2 border-dashed border-zinc-300 rounded-lg flex items-center justify-center mb-6 relative overflow-hidden bg-zinc-50">
+                <p id="placeholderText" class="text-zinc-400 text-sm font-medium">Image Preview</p>
+                <!-- Canvas will be injected here -->
+                <canvas id="outputCanvas" class="hidden w-full h-full object-contain checkerboard"></canvas>
+            </div>
+
+            <!-- Download Action -->
+            <button 
+                id="downloadBtn" 
+                onclick="downloadImage()" 
+                class="w-full max-w-xs bg-zinc-900 text-white py-3 rounded-lg font-semibold hover:bg-zinc-700 transition-all shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download PNG
+            </button>
+        </div>
+    </div>
+
+    <!-- Instructions Footer -->
+    <div class="mt-8 text-zinc-400 text-xs text-center max-w-md">
+        <p>Supports JSON Base64 strings containing SVG data.</p>
+        <p>Pixel-art optimized scaling (Nearest Neighbor).</p>
+    </div>
+
+    <script>
+        const inputData = document.getElementById('inputData');
+        const canvas = document.getElementById('outputCanvas');
+        const ctx = canvas.getContext('2d');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        const placeholderText = document.getElementById('placeholderText');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const metaName = document.getElementById('metaName');
+
+        let currentFileName = "artifact.png";
+
+        function showError(msg) {
+            errorMsg.innerText = msg;
+            errorMsg.classList.remove('opacity-0');
+            setTimeout(() => errorMsg.classList.add('opacity-0'), 3000);
+        }
+
+        function clearInput() {
+            inputData.value = '';
+            resetCanvas();
+        }
+
+        function resetCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            canvas.classList.add('hidden');
+            placeholderText.classList.remove('hidden');
+            canvasContainer.classList.remove('border-zinc-900', 'border-solid');
+            canvasContainer.classList.add('border-dashed', 'border-zinc-300');
+            downloadBtn.disabled = true;
+            metaName.classList.add('hidden');
+        }
+
+        function convertData() {
+            const rawInput = inputData.value.trim();
+            
+            if (!rawInput) {
+                showError("Please paste a string first.");
+                return;
+            }
+
+            try {
+                // 1. Clean the input string (remove data URL prefix if present)
+                let base64String = rawInput;
+                if (rawInput.includes(',')) {
+                    base64String = rawInput.split(',')[1]; 
+                }
+
+                // 2. Decode Base64 to JSON
+                const jsonString = atob(base64String);
+                const jsonData = JSON.parse(jsonString);
+
+                // 3. Verify it has an image
+                if (!jsonData.image) {
+                    throw new Error("JSON found, but no 'image' property.");
+                }
+
+                // 4. Update Metadata UI
+                if (jsonData.name) {
+                    metaName.innerText = jsonData.name;
+                    metaName.classList.remove('hidden');
+                    currentFileName = jsonData.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() + ".png";
+                }
+
+                // 5. Load SVG Image
+                const img = new Image();
+                img.onload = function() {
+                    // Set canvas size (High res for download)
+                    canvas.width = 1000;
+                    canvas.height = 1000;
+
+                    // Disable smoothing for crisp pixel art (Important for the eye detail!)
+                    ctx.imageSmoothingEnabled = false; 
+                    
+                    // Draw
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                    // Update UI State
+                    placeholderText.classList.add('hidden');
+                    canvas.classList.remove('hidden');
+                    canvasContainer.classList.remove('border-dashed', 'border-zinc-300');
+                    canvasContainer.classList.add('border-solid', 'border-zinc-900'); // Solid border on success
+                    downloadBtn.disabled = false;
+                };
+                
+                img.onerror = function() {
+                    showError("Failed to render the SVG data.");
+                };
+
+                // The image source is the SVG data URI from the JSON
+                img.src = jsonData.image;
+
+            } catch (err) {
+                console.error(err);
+                showError("Invalid Data. Is this a valid JSON Base64 string?");
+            }
+        }
+
+        function downloadImage() {
+            const link = document.createElement('a');
+            link.download = currentFileName;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+    </script>
+</body>
+</html>
+
